@@ -1,10 +1,17 @@
-use weekend_dns::{TYPE_A, build_query};
+use std::env;
+use weekend_dns::{TYPE_A, resolve};
 
 fn main() {
-    let domain = "www.example.com".to_string();
-    let query_bytes = build_query(domain.clone(), TYPE_A);
+    let args: Vec<String> = env::args().collect();
 
-    println!("DNS Query for: {}", domain);
-    println!("Hex: {:02x?}", query_bytes);
-    println!("Total bytes: {}", query_bytes.len());
+    if args.len() < 2 {
+        eprintln!("Usage: {} <domain>", args[0]);
+        std::process::exit(1);
+    }
+
+    let domain = &args[1];
+
+    println!("Resolving: {}", domain);
+    let ip = resolve(domain, TYPE_A);
+    println!("Final IP for {}: {}", domain, ip);
 }
