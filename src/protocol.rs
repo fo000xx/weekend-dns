@@ -1,18 +1,65 @@
+use crate::protocol::record::Record;
+use crate::reader::Reader;
 use rand::RngExt;
 
 pub mod header;
 pub mod question;
+pub mod record;
 
 use crate::protocol::header::Header;
 use crate::protocol::question::Question;
 
 pub const TYPE_A: u16 = 1;
+pub const TYPE_NS: u16 = 2;
 pub const CLASS_IN: u16 = 1;
+
+#[derive(Debug)]
+pub struct DNSPacket {
+    pub header: Header,
+    pub questions: Vec<Question>,
+    pub answers: Vec<Record>,
+    pub authorities: Vec<Record>,
+    pub additionals: Vec<Record>,
+}
+
+impl DNSPacket {
+    pub fn from_reader(reader: &mut Reader) -> Self {
+        let header = Header::from_reader(reader);
+
+        let mut questions = Vec::with_capacity(header.num_questions as usize);
+        for _ in 0..header.num_questions {
+            questions.push(Question::from_reader(reader));
+        }
+
+        let mut answers = Vec::with_capacity(header.num_answers as usize);
+        for _ in 0..header.num_answers {
+            answers.push(Record::from_reader(reader));
+        }
+
+        let mut authorities = Vec::with_capacity(header.num_authorities as usize);
+        for _ in 0..header.num_authorities {
+            authorities.push(Record::from_reader(reader));
+        }
+
+        let mut additionals = Vec::with_capacity(header.num_additonals as usize);
+        for _ in 0..header.num_additonals {
+            additionals.push(Record::from_reader(reader));
+        }
+
+        Self {
+            header,
+            questions,
+            answers,
+            authorities,
+            additionals,
+        }
+    }
+}
 
 pub fn build_query(domain: String, record_type: u16) -> Vec<u8> {
     let mut rng = rand::rng();
     let id = rng.random_range(0..65535);
-    let recursion_desired = 0x0100;
+    let recursion_desired = 0;
     let header = Header {
         id: id,
         flags: recursion_desired,
@@ -48,8 +95,8 @@ mod tests {
         // Total expected length: 12 + 13 + 2 + 2 = 29 bytes
         assert_eq!(query_bytes.len(), 29);
 
-        // Check flags: recursion desired (0x0100)
-        assert_eq!(query_bytes[2], 0x01);
+        // Check flags: no recursion desired (0x0000)
+        assert_eq!(query_bytes[2], 0x00);
         assert_eq!(query_bytes[3], 0x00);
 
         // Check number of questions: 1
@@ -70,5 +117,18 @@ mod tests {
         // Check class (at offset 27-28)
         assert_eq!(query_bytes[27], 0);
         assert_eq!(query_bytes[28], CLASS_IN as u8);
+    }
+
+    #[test]
+    fn test_dns_packet_from_reader() {
+        let domain = "example.com".to_string();
+        let query_bytes = build_query(domain.clone(), TYPE_A);
+        let mut reader = Reader::new(&query_bytes);
+        let packet = DNSPacket::from_reader(&mut reader);
+
+        assert_eq!(packet.header.num_questions, 1);
+        assert_eq!(packet.questions.len(), 1);
+        assert_eq!(packet.questions[0].name, domain);
+        assert_eq!(packet.answers.len(), 0);
     }
 }

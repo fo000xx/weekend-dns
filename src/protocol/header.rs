@@ -1,3 +1,5 @@
+use crate::reader::Reader;
+
 #[derive(Debug, Default)]
 pub struct Header {
     pub id: u16,
@@ -20,11 +22,42 @@ impl Header {
 
         bytes
     }
+
+    pub fn from_reader(reader: &mut Reader) -> Self {
+        Self {
+            id: reader.read_u16(),
+            flags: reader.read_u16(),
+            num_questions: reader.read_u16(),
+            num_answers: reader.read_u16(),
+            num_authorities: reader.read_u16(),
+            num_additonals: reader.read_u16(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_header_from_reader() {
+        let bytes = [
+            0x12, 0x34, // ID
+            0x81, 0x80, // Flags
+            0x00, 0x01, // Questions
+            0x00, 0x01, // Answers
+            0x00, 0x00, // Authorities
+            0x00, 0x00, // Additionals
+        ];
+        let mut reader = Reader::new(&bytes);
+        let header = Header::from_reader(&mut reader);
+
+        assert_eq!(header.id, 0x1234);
+        assert_eq!(header.flags, 0x8180);
+        assert_eq!(header.num_questions, 1);
+        assert_eq!(header.num_answers, 1);
+        assert_eq!(reader.pos, 12);
+    }
 
     #[test]
     fn test_header_to_bytes() {
